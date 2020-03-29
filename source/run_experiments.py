@@ -65,12 +65,12 @@ def build_combined_categorical(FLAGS, NUM_FILTERS, FILTER_LENGTH1, FILTER_LENGTH
 
     ### SMI_EMB_DINMS  FLAGS GELMELII 
     encode_smiles = Embedding(input_dim=FLAGS.charsmiset_size+1, output_dim=128, input_length=FLAGS.max_smi_len)(XDinput) 
-    encode_smiles_squeezed = K.squeeze(encode_smiles, axis=0)
+    # encode_smiles_squeezed = K.squeeze(encode_smiles, axis=0)
+    e_s = Flatten()(encode_smiles)
 
     encode_protein = Embedding(input_dim=FLAGS.charseqset_size+1, output_dim=128, input_length=FLAGS.max_seq_len)(XTinput)
-    encode_protein_squeezed = K.squeeze(encode_protein, axis=0)
-
-    pdb.set_trace()
+    # encode_protein_squeezed = K.squeeze(encode_protein, axis=0)
+    e_p = Flatten()(encode_protein)
 
     encode_interaction = keras.layers.concatenate([encode_smiles, encode_protein], axis=-1) #merge.Add()([encode_smiles, encode_protein])
 
