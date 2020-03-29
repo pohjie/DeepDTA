@@ -72,7 +72,7 @@ def build_combined_categorical(FLAGS, NUM_FILTERS, FILTER_LENGTH1, FILTER_LENGTH
     # encode_protein_squeezed = K.squeeze(encode_protein, axis=0)
     e_p = Flatten()(encode_protein)
 
-    encode_interaction = keras.layers.concatenate([encode_smiles, encode_protein], axis=-1) #merge.Add()([encode_smiles, encode_protein])
+    encode_interaction = keras.layers.concatenate([e_s, e_p], axis=-1) #merge.Add()([encode_smiles, encode_protein])
 
     # Fully connected 
     FC1 = Dense(1024, activation='relu')(encode_interaction)
