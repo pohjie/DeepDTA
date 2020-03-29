@@ -35,7 +35,7 @@ from keras.layers import Embedding
 from keras.layers import Conv1D, GlobalMaxPooling1D, MaxPooling1D
 from keras.layers.normalization import BatchNormalization
 from keras.layers import Conv2D, GRU
-from keras.layers import Input, Embedding, LSTM, Dense, TimeDistributed, Masking, RepeatVector, merge, Flatten
+from keras.layers import Input, Embedding, LSTM, Dense, TimeDistributed, Masking, RepeatVector, merge, Flatten, Reshape
 from keras.models import Model
 from keras.utils import plot_model
 from keras.layers import Bidirectional
@@ -58,50 +58,6 @@ from emetrics import get_aupr, get_cindex, get_rm2
 TABSY = "\t"
 figdir = "figures/"
 
-def build_combined_onehot(FLAGS, NUM_FILTERS, FILTER_LENGTH1, FILTER_LENGTH2):
-    XDinput = Input(shape=(FLAGS.max_smi_len, FLAGS.charsmiset_size))
-    XTinput = Input(shape=(FLAGS.max_seq_len, FLAGS.charseqset_size))
-
-
-    encode_smiles= Conv1D(filters=NUM_FILTERS, kernel_size=FILTER_LENGTH1,  activation='relu', padding='valid',  strides=1)(XDinput)
-    encode_smiles = Conv1D(filters=NUM_FILTERS*2, kernel_size=FILTER_LENGTH1,  activation='relu', padding='valid',  strides=1)(encode_smiles)
-    encode_smiles = Conv1D(filters=NUM_FILTERS*3, kernel_size=FILTER_LENGTH1,  activation='relu', padding='valid',  strides=1)(encode_smiles)
-    encode_smiles = GlobalMaxPooling1D()(encode_smiles) #pool_size=pool_length[i]
-
-
-    encode_protein = Conv1D(filters=NUM_FILTERS, kernel_size=FILTER_LENGTH2,  activation='relu', padding='valid',  strides=1)(XTinput)
-    encode_protein = Conv1D(filters=NUM_FILTERS*2, kernel_size=FILTER_LENGTH2,  activation='relu', padding='valid',  strides=1)(encode_protein)
-    encode_protein = Conv1D(filters=NUM_FILTERS*3, kernel_size=FILTER_LENGTH2,  activation='relu', padding='valid',  strides=1)(encode_protein)
-    encode_protein = GlobalMaxPooling1D()(encode_protein)
-
-
-
-    encode_interaction = keras.layers.concatenate([encode_smiles, encode_protein])
-    #encode_interaction = keras.layers.concatenate([encode_smiles, encode_protein], axis=-1) #merge.Add()([encode_smiles, encode_protein])
-
-    # Fully connected 
-    FC1 = Dense(1024, activation='relu')(encode_interaction)
-    FC2 = Dropout(0.1)(FC1)
-    FC2 = Dense(1024, activation='relu')(FC2)
-    FC2 = Dropout(0.1)(FC2)
-    FC2 = Dense(512, activation='relu')(FC2)
-
-
-    predictions = Dense(1, kernel_initializer='normal')(FC2) 
-
-    interactionModel = Model(inputs=[XDinput, XTinput], outputs=[predictions])
-    interactionModel.compile(optimizer='adam', loss='mean_squared_error', metrics=[cindex_score]) #, metrics=['cindex_score']
-    
-
-    print(interactionModel.summary())
-    plot_model(interactionModel, to_file='figures/build_combined_onehot.png')
-
-    return interactionModel
-
-
-
-
-
 def build_combined_categorical(FLAGS, NUM_FILTERS, FILTER_LENGTH1, FILTER_LENGTH2):
    
     XDinput = Input(shape=(FLAGS.max_smi_len,), dtype='int32') ### Buralar flagdan gelmeliii
@@ -109,8 +65,12 @@ def build_combined_categorical(FLAGS, NUM_FILTERS, FILTER_LENGTH1, FILTER_LENGTH
 
     ### SMI_EMB_DINMS  FLAGS GELMELII 
     encode_smiles = Embedding(input_dim=FLAGS.charsmiset_size+1, output_dim=128, input_length=FLAGS.max_smi_len)(XDinput) 
+    encode_smiles_squeezed = K.squeeze(encode_smiles, axis=0)
 
     encode_protein = Embedding(input_dim=FLAGS.charseqset_size+1, output_dim=128, input_length=FLAGS.max_seq_len)(XTinput)
+    encode_protein_squeezed = K.squeeze(encode_protein, axis=0)
+
+    pdb.set_trace()
 
     encode_interaction = keras.layers.concatenate([encode_smiles, encode_protein], axis=-1) #merge.Add()([encode_smiles, encode_protein])
 
@@ -130,75 +90,6 @@ def build_combined_categorical(FLAGS, NUM_FILTERS, FILTER_LENGTH1, FILTER_LENGTH
     interactionModel.compile(optimizer='adam', loss='mean_squared_error', metrics=[cindex_score]) #, metrics=['cindex_score']
     print(interactionModel.summary())
     plot_model(interactionModel, to_file='figures/build_combined_categorical.png')
-
-    return interactionModel
-
-
-
-def build_single_drug(FLAGS, NUM_FILTERS, FILTER_LENGTH1, FILTER_LENGTH2):
-   
-    interactionModel = Sequential()
-    XTmodel = Sequential()
-    XTmodel.add(Activation('linear', input_shape=(FLAGS.target_count,)))
-
-
-    encode_smiles = Sequential()
-    encode_smiles.add(Embedding(input_dim=FLAGS.charsmiset_size+1, output_dim=128, input_length=FLAGS.max_smi_len)) 
-    encode_smiles.add(Conv1D(filters=NUM_FILTERS, kernel_size=FILTER_LENGTH1,  activation='relu', padding='valid',  strides=1)) #input_shape=(MAX_SMI_LEN, SMI_EMBEDDING_DIMS)
-    encode_smiles.add(Conv1D(filters=NUM_FILTERS*2, kernel_size=FILTER_LENGTH1,  activation='relu', padding='valid',  strides=1))
-    encode_smiles.add(Conv1D(filters=NUM_FILTERS*3, kernel_size=FILTER_LENGTH1,  activation='relu', padding='valid',  strides=1))
-    encode_smiles.add(GlobalMaxPooling1D())
-
-
-    interactionModel.add(Merge([encode_smiles, XTmodel], mode='concat', concat_axis=1))
-    #interactionModel.add(layers.merge.Concatenate([XDmodel, XTmodel]))
-
-    # Fully connected 
-    interactionModel.add(Dense(1024, activation='relu')) #1024
-    interactionModel.add(Dropout(0.1))
-    interactionModel.add(Dense(1024, activation='relu')) #1024
-    interactionModel.add(Dropout(0.1))
-    interactionModel.add(Dense(512, activation='relu')) 
-
-
-    interactionModel.add(Dense(1, kernel_initializer='normal'))
-    interactionModel.compile(optimizer='adam', loss='mean_squared_error', metrics=[cindex_score])
-
-    print(interactionModel.summary())
-    plot_model(interactionModel, to_file='figures/build_single_drug.png')
-
-    return interactionModel
-
-
-def build_single_prot(FLAGS, NUM_FILTERS, FILTER_LENGTH1, FILTER_LENGTH2):
-   
-    interactionModel = Sequential()
-    XDmodel = Sequential()
-    XDmodel.add(Activation('linear', input_shape=(FLAGS.drugcount,)))
-
-
-    XTmodel1 = Sequential()
-    XTmodel1.add(Embedding(input_dim=FLAGS.charseqset_size+1, output_dim=128,  input_length=FLAGS.max_seq_len))
-    XTmodel1.add(Conv1D(filters=NUM_FILTERS, kernel_size=FILTER_LENGTH2,  activation='relu', padding='valid',  strides=1)) #input_shape=(MAX_SEQ_LEN, SEQ_EMBEDDING_DIMS)
-    XTmodel1.add(Conv1D(filters=NUM_FILTERS*2, kernel_size=FILTER_LENGTH2,  activation='relu', padding='valid',  strides=1))
-    XTmodel1.add(Conv1D(filters=NUM_FILTERS*3, kernel_size=FILTER_LENGTH2,  activation='relu', padding='valid',  strides=1))
-    XTmodel1.add(GlobalMaxPooling1D())
-
-
-    interactionModel.add(Merge([XDmodel, XTmodel1], mode='concat', concat_axis=1))
-
-    # Fully connected 
-    interactionModel.add(Dense(1024, activation='relu'))
-    interactionModel.add(Dropout(0.1))
-    interactionModel.add(Dense(1024, activation='relu'))
-    interactionModel.add(Dropout(0.1))
-    interactionModel.add(Dense(512, activation='relu'))
-
-    interactionModel.add(Dense(1, kernel_initializer='normal'))
-    interactionModel.compile(optimizer='adam', loss='mean_squared_error', metrics=[cindex_score])
-
-    print(interactionModel.summary())
-    plot_model(interactionModel, to_file='figures/build_single_protein.png')
 
     return interactionModel
 
@@ -422,7 +313,7 @@ def plotLoss(history, batchind, epochind, param3ind, foldind):
     plt.title('model loss')
     plt.ylabel('loss')
     plt.xlabel('epoch')
-	#plt.legend(['trainloss', 'valloss', 'cindex', 'valcindex'], loc='upper left')
+    #plt.legend(['trainloss', 'valloss', 'cindex', 'valcindex'], loc='upper left')
     plt.legend(['trainloss', 'valloss'], loc='upper left')
     plt.savefig("figures/"+figname +".png" , dpi=None, facecolor='w', edgecolor='w', orientation='portrait', 
                     papertype=None, format=None,transparent=False, bbox_inches=None, pad_inches=0.1,frameon=None)
