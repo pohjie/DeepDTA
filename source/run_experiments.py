@@ -2,7 +2,8 @@ from __future__ import print_function
 #import matplotlib
 #matplotlib.use('Agg')
 import numpy as np
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
+tf.disable_v2_behavior()
 import random as rn
 
 ### We modified Pahikkala et al. (2014) source code for cross-val process ###
@@ -18,7 +19,7 @@ import keras
 from keras import backend as K
 tf.set_random_seed(0)
 sess = tf.Session(graph=tf.get_default_graph(), config=session_conf)
-K.set_session(sess)
+tf.compat.v1.keras.backend.set_session(sess)
 
 
 from datahelper import *
@@ -59,12 +60,12 @@ TABSY = "\t"
 figdir = "figures/"
 
 def build_combined_categorical(FLAGS, NUM_FILTERS, FILTER_LENGTH1, FILTER_LENGTH2):
-   
+
     XDinput = Input(shape=(FLAGS.max_smi_len,), dtype='int32') ### Buralar flagdan gelmeliii
     XTinput = Input(shape=(FLAGS.max_seq_len,), dtype='int32')
 
-    ### SMI_EMB_DINMS  FLAGS GELMELII 
-    encode_smiles = Embedding(input_dim=FLAGS.charsmiset_size+1, output_dim=128, input_length=FLAGS.max_smi_len)(XDinput) 
+    ### SMI_EMB_DINMS  FLAGS GELMELII
+    encode_smiles = Embedding(input_dim=FLAGS.charsmiset_size+1, output_dim=128, input_length=FLAGS.max_smi_len)(XDinput)
     # encode_smiles_squeezed = K.squeeze(encode_smiles, axis=0)
     e_s = Flatten()(encode_smiles)
 
@@ -74,7 +75,7 @@ def build_combined_categorical(FLAGS, NUM_FILTERS, FILTER_LENGTH1, FILTER_LENGTH
 
     encode_interaction = keras.layers.concatenate([e_s, e_p], axis=-1) #merge.Add()([encode_smiles, encode_protein])
 
-    # Fully connected 
+    # Fully connected
     FC1 = Dense(1024, activation='relu')(encode_interaction)
     FC2 = Dropout(0.1)(FC1)
     FC2 = Dense(1024, activation='relu')(FC2)
@@ -105,7 +106,7 @@ def build_baseline(FLAGS, NUM_FILTERS, FILTER_LENGTH1, FILTER_LENGTH2):
 
     interactionModel.add(Merge([XDmodel, XTmodel], mode='concat', concat_axis=1))
 
-    # Fully connected 
+    # Fully connected
     interactionModel.add(Dense(1024, activation='relu'))
     interactionModel.add(Dropout(0.1))
     interactionModel.add(Dense(1024, activation='relu'))
@@ -123,8 +124,8 @@ def build_baseline(FLAGS, NUM_FILTERS, FILTER_LENGTH1, FILTER_LENGTH2):
 def nfold_1_2_3_setting_sample(XD, XT,  Y, label_row_inds, label_col_inds, measure, runmethod,  FLAGS, dataset):
 
     bestparamlist = []
-    test_set, outer_train_sets = dataset.read_sets(FLAGS) 
-    
+    test_set, outer_train_sets = dataset.read_sets(FLAGS)
+
     foldinds = len(outer_train_sets)
 
     test_sets = []
@@ -146,18 +147,18 @@ def nfold_1_2_3_setting_sample(XD, XT,  Y, label_row_inds, label_col_inds, measu
 
 
 
-    bestparamind, best_param_list, bestperf, all_predictions_not_need, losses_not_need = general_nfold_cv(XD, XT,  Y, label_row_inds, label_col_inds, 
+    bestparamind, best_param_list, bestperf, all_predictions_not_need, losses_not_need = general_nfold_cv(XD, XT,  Y, label_row_inds, label_col_inds,
                                                                                                 measure, runmethod, FLAGS, train_sets, val_sets)
-   
+
     #print("Test Set len", str(len(test_set)))
     #print("Outer Train Set len", str(len(outer_train_sets)))
-    bestparam, best_param_list, bestperf, all_predictions, all_losses = general_nfold_cv(XD, XT,  Y, label_row_inds, label_col_inds, 
+    bestparam, best_param_list, bestperf, all_predictions, all_losses = general_nfold_cv(XD, XT,  Y, label_row_inds, label_col_inds,
                                                                                                 measure, runmethod, FLAGS, train_sets, test_sets)
-    
-    testperf = all_predictions[bestparamind]##pointer pos 
+
+    testperf = all_predictions[bestparamind]##pointer pos
 
     logging("---FINAL RESULTS-----", FLAGS)
-    logging("best param index = %s,  best param = %.5f" % 
+    logging("best param index = %s,  best param = %.5f" %
             (bestparamind, bestparam), FLAGS)
 
 
@@ -188,7 +189,7 @@ def nfold_1_2_3_setting_sample(XD, XT,  Y, label_row_inds, label_col_inds, measu
 
 
 def general_nfold_cv(XD, XT,  Y, label_row_inds, label_col_inds, prfmeasure, runmethod, FLAGS, labeled_sets, val_sets): ## BURAYA DA FLAGS LAZIM????
-    
+
     paramset1 = FLAGS.num_windows                              #[32]#[32,  512] #[32, 128]  # filter numbers
     paramset2 = FLAGS.smi_window_lengths                               #[4, 8]#[4,  32] #[4,  8] #filter length smi
     paramset3 = FLAGS.seq_window_lengths                               #[8, 12]#[64,  256] #[64, 192]#[8, 192, 384]
@@ -200,8 +201,8 @@ def general_nfold_cv(XD, XT,  Y, label_row_inds, label_col_inds, prfmeasure, run
     w = len(val_sets)
     h = len(paramset1) * len(paramset2) * len(paramset3)
 
-    all_predictions = [[0 for x in range(w)] for y in range(h)] 
-    all_losses = [[0 for x in range(w)] for y in range(h)] 
+    all_predictions = [[0 for x in range(w)] for y in range(h)]
+    all_losses = [[0 for x in range(w)] for y in range(h)]
     print(all_predictions)
 
     for foldind in range(len(val_sets)):
@@ -220,7 +221,7 @@ def general_nfold_cv(XD, XT,  Y, label_row_inds, label_col_inds, prfmeasure, run
         XT_train = XT[trcols]
 
         train_drugs, train_prots,  train_Y = prepare_interaction_pairs(XD, XT, Y, trrows, trcols)
-        
+
         terows = label_row_inds[valinds]
         tecols = label_col_inds[valinds]
         #print("terows", str(terows), str(len(terows)))
@@ -230,7 +231,7 @@ def general_nfold_cv(XD, XT,  Y, label_row_inds, label_col_inds, prfmeasure, run
 
 
         pointer = 0
-       
+
         for param1ind in range(len(paramset1)): #hidden neurons
             param1value = paramset1[param1ind]
             for param2ind in range(len(paramset2)): #learning rate
@@ -241,8 +242,8 @@ def general_nfold_cv(XD, XT,  Y, label_row_inds, label_col_inds, prfmeasure, run
 
                     gridmodel = runmethod(FLAGS, param1value, param2value, param3value)
                     es = EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=15)
-                    gridres = gridmodel.fit(([np.array(train_drugs),np.array(train_prots) ]), np.array(train_Y), batch_size=batchsz, epochs=epoch, 
-                            validation_data=( ([np.array(val_drugs), np.array(val_prots) ]), np.array(val_Y)),  shuffle=False, callbacks=[es] ) 
+                    gridres = gridmodel.fit(([np.array(train_drugs),np.array(train_prots) ]), np.array(train_Y), batch_size=batchsz, epochs=epoch,
+                            validation_data=( ([np.array(val_drugs), np.array(val_prots) ]), np.array(val_Y)),  shuffle=False, callbacks=[es] )
 
 
                     predicted_labels = gridmodel.predict([np.array(val_drugs), np.array(val_prots) ])
@@ -251,7 +252,7 @@ def general_nfold_cv(XD, XT,  Y, label_row_inds, label_col_inds, prfmeasure, run
                     rperf = rperf[0]
 
 
-                    logging("P1 = %d,  P2 = %d, P3 = %d, Fold = %d, CI-i = %f, CI-ii = %f, MSE = %f" % 
+                    logging("P1 = %d,  P2 = %d, P3 = %d, Fold = %d, CI-i = %f, CI-ii = %f, MSE = %f" %
                     (param1ind, param2ind, param3ind, foldind, rperf, rperf2, loss), FLAGS)
 
                     plotLoss(gridres, param1ind, param2ind, param3ind, foldind)
@@ -271,7 +272,7 @@ def general_nfold_cv(XD, XT,  Y, label_row_inds, label_col_inds, prfmeasure, run
     for param1ind in range(len(paramset1)):
             for param2ind in range(len(paramset2)):
                 for param3ind in range(len(paramset3)):
-                
+
                     avgperf = 0.
                     for foldind in range(len(val_sets)):
                         foldperf = all_predictions[pointer][foldind]
@@ -284,7 +285,7 @@ def general_nfold_cv(XD, XT,  Y, label_row_inds, label_col_inds, prfmeasure, run
                         best_param_list = [param1ind, param2ind, param3ind]
 
                     pointer +=1
-        
+
     return  bestpointer, best_param_list, bestperf, all_predictions, all_losses
 
 
@@ -303,10 +304,10 @@ def cindex_score(y_true, y_pred):
     return tf.where(tf.equal(g, 0), 0.0, g/f) #select
 
 
-   
+
 def plotLoss(history, batchind, epochind, param3ind, foldind):
 
-    figname = "b"+str(batchind) + "_e" + str(epochind) + "_" + str(param3ind) + "_"  + str( foldind) + "_" + str(time.time()) 
+    figname = "b"+str(batchind) + "_e" + str(epochind) + "_" + str(param3ind) + "_"  + str( foldind) + "_" + str(time.time())
     plt.figure()
     plt.plot(history.history['loss'])
     plt.plot(history.history['val_loss'])
@@ -315,7 +316,7 @@ def plotLoss(history, batchind, epochind, param3ind, foldind):
     plt.xlabel('epoch')
     #plt.legend(['trainloss', 'valloss', 'cindex', 'valcindex'], loc='upper left')
     plt.legend(['trainloss', 'valloss'], loc='upper left')
-    plt.savefig("figures/"+figname +".png" , dpi=None, facecolor='w', edgecolor='w', orientation='portrait', 
+    plt.savefig("figures/"+figname +".png" , dpi=None, facecolor='w', edgecolor='w', orientation='portrait',
                     papertype=None, format=None,transparent=False, bbox_inches=None, pad_inches=0.1,frameon=None)
     plt.close()
 
@@ -328,7 +329,7 @@ def plotLoss(history, batchind, epochind, param3ind, foldind):
     plt.plot(history.history['cindex_score'])
     plt.plot(history.history['val_cindex_score'])
     plt.legend(['traincindex', 'valcindex'], loc='upper left')
-    plt.savefig("figures/"+figname + "_acc.png" , dpi=None, facecolor='w', edgecolor='w', orientation='portrait', 
+    plt.savefig("figures/"+figname + "_acc.png" , dpi=None, facecolor='w', edgecolor='w', orientation='portrait',
                             papertype=None, format=None,transparent=False, bbox_inches=None, pad_inches=0.1,frameon=None)
 
 
@@ -337,8 +338,8 @@ def prepare_interaction_pairs(XD, XT,  Y, rows, cols):
     drugs = []
     targets = []
     targetscls = []
-    affinity=[] 
-        
+    affinity=[]
+
     for pair_ind in range(len(rows)):
         drug = XD[rows[pair_ind]]
         drugs.append(drug)
@@ -354,7 +355,7 @@ def prepare_interaction_pairs(XD, XT,  Y, rows, cols):
     return drug_data,target_data,  affinity
 
 
-       
+
 def experiment(FLAGS, perfmeasure, deepmethod, foldcount=6): #5-fold cross validation + test
 
     #Input
@@ -372,8 +373,8 @@ def experiment(FLAGS, perfmeasure, deepmethod, foldcount=6): #5-fold cross valid
                       smilen = FLAGS.max_smi_len,
                       need_shuffle = False )
     # set character set size
-    FLAGS.charseqset_size = dataset.charseqset_size 
-    FLAGS.charsmiset_size = dataset.charsmiset_size 
+    FLAGS.charseqset_size = dataset.charseqset_size
+    FLAGS.charsmiset_size = dataset.charsmiset_size
 
     XD, XT, Y = dataset.parse_data(FLAGS)
 
@@ -399,13 +400,13 @@ def experiment(FLAGS, perfmeasure, deepmethod, foldcount=6): #5-fold cross valid
                                                                      perfmeasure, deepmethod, FLAGS, dataset)
 
     logging("Setting " + str(FLAGS.problem_type), FLAGS)
-    logging("avg_perf = %.5f,  avg_mse = %.5f, std = %.5f" % 
+    logging("avg_perf = %.5f,  avg_mse = %.5f, std = %.5f" %
             (S1_avgperf, S1_avgloss, S1_teststd), FLAGS)
 
 
 
 
-def run_regression( FLAGS ): 
+def run_regression( FLAGS ):
 
     perfmeasure = get_cindex
     deepmethod = build_combined_categorical
