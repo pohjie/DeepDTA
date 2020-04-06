@@ -56,6 +56,8 @@ from emetrics import get_aupr, get_cindex, get_rm2
 
 import pdb
 
+os.environ["CUDA_VISIBLE_DEVICES"]="2,3"
+
 TABSY = "\t"
 figdir = "figures/"
 
